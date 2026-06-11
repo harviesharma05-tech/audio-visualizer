@@ -7,237 +7,187 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#0a0e27;color:#e2e8f0;font-family:Arial,sans-serif;overflow:hidden;height:100vh;}
-canvas{display:block;width:100%;height:100%;background:#0a0e27;}
+canvas{display:block;width:100%;height:100%;}
 .controls{position:absolute;top:20px;left:20px;background:#1a1f3a;padding:20px;border-radius:10px;border:2px solid #00ff9d;z-index:10;}
-.controls h2{color:#00ff9d;margin-bottom:15px;font-size:14px;}
-.control-group{margin-bottom:15px;}
-.label{font-size:12px;color:#a0aec0;margin-bottom:8px;display:block;}
-button{background:#00ff9d;color:#0a0e27;border:none;padding:12px 16px;border-radius:6px;cursor:pointer;font-weight:bold;width:100%;margin-bottom:8px;font-size:14px;}
+.controls h2{color:#00ff9d;margin-bottom:15px;}
+button{background:#00ff9d;color:#0a0e27;border:none;padding:10px;border-radius:6px;cursor:pointer;width:100%;margin-bottom:8px;font-weight:bold;}
 button:hover{opacity:0.9;}
-button.active{background:#00d9ff;}
-input[type="file"]{width:100%;padding:8px;background:#0a0e27;border:1px solid #00ff9d;border-radius:6px;color:#00ff9d;}
+input[type="file"]{width:100%;padding:8px;margin-bottom:10px;}
 input[type="range"]{width:100%;margin-top:8px;}
-input[type="color"]{width:100%;height:40px;border:none;border-radius:6px;}
-.status{position:absolute;bottom:20px;left:20px;background:#1a1f3a;padding:15px;border-radius:10px;border:1px solid #00ff9d;font-size:12px;color:#00ff9d;}
+input[type="color"]{width:100%;height:40px;border:none;}
+.status{position:absolute;bottom:20px;left:20px;background:#1a1f3a;padding:15px;border-radius:10px;color:#00ff9d;font-size:12px;}
 </style>
 </head>
 <body>
 
 <canvas id="canvas"></canvas>
-<audio id="audioPlayer" crossorigin="anonymous"></audio>
+<audio id="audio" crossorigin="anonymous"></audio>
 
 <div class="controls">
   <h2>🎵 Audio Visualizer</h2>
+  <input type="file" id="file" accept="audio/*">
+  <button onclick="playIt()">▶ PLAY</button>
+  <button onclick="stopIt()">⏹ STOP</button>
   
-  <div class="control-group">
-    <label class="label">📁 Load Audio</label>
-    <input type="file" id="audioFile" accept="audio/*">
+  <div style="margin-top:15px;">
+    <label style="font-size:12px;color:#a0aec0;">Style:</label>
+    <div style="margin-top:5px;">
+      <button onclick="setStyle('bars')" style="margin-bottom:5px;padding:8px;">Bars</button>
+      <button onclick="setStyle('circle')" style="margin-bottom:5px;padding:8px;">Circle</button>
+      <button onclick="setStyle('wave')" style="margin-bottom:5px;padding:8px;">Wave</button>
+    </div>
   </div>
-
-  <div class="control-group">
-    <label class="label">🎨 Style</label>
-    <button class="style-btn active" onclick="changeStyle('bars')">Bars</button>
-    <button class="style-btn" onclick="changeStyle('circle')">Circle</button>
-    <button class="style-btn" onclick="changeStyle('wave')">Wave</button>
-    <button class="style-btn" onclick="changeStyle('flower')">Flower</button>
-  </div>
-
-  <div class="control-group">
-    <label class="label">🎨 Color</label>
-    <input type="color" id="color" value="#00ff9d">
-  </div>
-
-  <div class="control-group">
-    <label class="label">⚡ Sensitivity</label>
-    <input type="range" id="sensitivity" min="0.5" max="3" step="0.1" value="1.5">
-  </div>
-
-  <div class="control-group">
-    <button onclick="playAudio()" style="background:#4ade80;">▶ PLAY</button>
-    <button onclick="pauseAudio()">⏸ PAUSE</button>
-    <button onclick="stopAudio()">⏹ STOP</button>
+  
+  <div style="margin-top:15px;">
+    <label style="font-size:12px;color:#a0aec0;">Color:</label>
+    <input type="color" id="colorPicker" value="#00ff9d" style="margin-top:5px;">
   </div>
 </div>
 
 <div class="status">
-  <div>Status: <span id="status">Load audio</span></div>
-  <div style="margin-top:8px;">⏱️ <span id="time">0:00</span> / <span id="duration">0:00</span></div>
+  <div id="status">Load audio file</div>
 </div>
 
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const audioPlayer = document.getElementById('audioPlayer');
-const audioFile = document.getElementById('audioFile');
-const status = document.getElementById('status');
-const timeEl = document.getElementById('time');
-const durationEl = document.getElementById('duration');
+const audio = document.getElementById('audio');
+const fileInput = document.getElementById('file');
+const statusDiv = document.getElementById('status');
+const colorPicker = document.getElementById('colorPicker');
 
 let audioCtx, analyser, dataArray;
 let isPlaying = false;
 let currentStyle = 'bars';
-let mediaSource;
-let animationId;
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+
 window.addEventListener('resize', () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 });
 
-function init() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  mediaSource = audioCtx.createMediaElementAudioSource(audioPlayer);
-  mediaSource.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  dataArray = new Uint8Array(analyser.frequencyBinCount);
-}
-
-audioFile.addEventListener('change', (e) => {
+fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    audioPlayer.src = event.target.result;
-    status.textContent = 'Ready!';
-    durationEl.textContent = '0:00';
-  };
-  reader.readAsDataURL(file);
+  const url = URL.createObjectURL(file);
+  audio.src = url;
+  statusDiv.textContent = '✓ Audio loaded. Click PLAY';
 });
 
-function playAudio() {
-  if (!audioPlayer.src) {
-    status.textContent = 'Load audio first!';
+function initAudio() {
+  if (audioCtx) return;
+  
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+  
+  const source = audioCtx.createMediaElementAudioSource(audio);
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+}
+
+function playIt() {
+  if (!audio.src) {
+    statusDiv.textContent = '❌ Load audio first!';
     return;
   }
   
-  init();
+  initAudio();
   
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
   
-  audioPlayer.play();
+  audio.play();
   isPlaying = true;
-  status.textContent = 'Playing ▶';
+  statusDiv.textContent = '▶ Playing...';
   animate();
 }
 
-function pauseAudio() {
-  audioPlayer.pause();
+function stopIt() {
+  audio.pause();
+  audio.currentTime = 0;
   isPlaying = false;
-  status.textContent = 'Paused';
-}
-
-function stopAudio() {
-  audioPlayer.pause();
-  audioPlayer.currentTime = 0;
-  isPlaying = false;
-  status.textContent = 'Stopped';
-  timeEl.textContent = '0:00';
+  statusDiv.textContent = 'Stopped';
   ctx.fillStyle = '#0a0e27';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-function changeStyle(style) {
+function setStyle(style) {
   currentStyle = style;
-  document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
 }
 
 function drawBars() {
-  const w = canvas.width / dataArray.length * 2.5;
-  const color = document.getElementById('color').value;
-  const sens = parseFloat(document.getElementById('sensitivity').value);
-  let x = 0;
+  const barWidth = canvas.width / dataArray.length;
+  const color = colorPicker.value;
   
   for (let i = 0; i < dataArray.length; i++) {
-    const v = (dataArray[i] / 255) * sens;
-    const h = v * canvas.height * 0.8;
+    const barHeight = (dataArray[i] / 255) * canvas.height;
+    
     ctx.fillStyle = color;
-    ctx.globalAlpha = 0.8;
-    ctx.fillRect(x, canvas.height - h, w - 2, h);
-    x += w;
+    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 1, barHeight);
   }
-  ctx.globalAlpha = 1;
 }
 
 function drawCircle() {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  const r = 150;
-  const color = document.getElementById('color').value;
-  const sens = parseFloat(document.getElementById('sensitivity').value);
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = 100;
+  const color = colorPicker.value;
   
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
   ctx.stroke();
   
   for (let i = 0; i < dataArray.length; i++) {
     const angle = (i / dataArray.length) * Math.PI * 2;
-    const v = (dataArray[i] / 255) * sens;
-    const dist = r + v * 100;
-    const x = cx + Math.cos(angle) * dist;
-    const y = cy + Math.sin(angle) * dist;
+    const value = dataArray[i] / 255;
+    const r = radius + value * 80;
+    
+    const x = centerX + Math.cos(angle) * r;
+    const y = centerY + Math.sin(angle) * r;
     
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, 2 + v * 4, 0, Math.PI * 2);
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
 function drawWave() {
-  const cy = canvas.height / 2;
-  const step = canvas.width / dataArray.length;
-  const color = document.getElementById('color').value;
-  const sens = parseFloat(document.getElementById('sensitivity').value);
+  const color = colorPicker.value;
+  const centerY = canvas.height / 2;
+  const sliceWidth = canvas.width / dataArray.length;
   
+  ctx.lineWidth = 2;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
   ctx.beginPath();
   
   for (let i = 0; i < dataArray.length; i++) {
-    const v = ((dataArray[i] / 255) - 0.5) * 200 * sens;
-    const x = i * step;
-    const y = cy + v;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    const v = dataArray[i] / 128.0;
+    const y = (v * canvas.height) / 2;
+    const x = (i * sliceWidth);
+    
+    if (i === 0) {
+      ctx.moveTo(x, centerY + y);
+    } else {
+      ctx.lineTo(x, centerY + y);
+    }
   }
+  
   ctx.stroke();
 }
 
-function drawFlower() {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  const color = document.getElementById('color').value;
-  const sens = parseFloat(document.getElementById('sensitivity').value);
-  
-  for (let i = 0; i < dataArray.length; i++) {
-    const angle = (i / dataArray.length) * Math.PI * 2;
-    const v = (dataArray[i] / 255) * sens;
-    const dist = 100 + v * 150;
-    const x = cx + Math.cos(angle) * dist;
-    const y = cy + Math.sin(angle) * dist;
-    
-    ctx.fillStyle = color;
-    ctx.globalAlpha = v;
-    ctx.beginPath();
-    ctx.arc(x, y, 3 + v * 5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
 function animate() {
-  ctx.fillStyle = 'rgba(10, 14, 39, 0.2)';
+  ctx.fillStyle = 'rgba(10, 14, 39, 0.1)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
   analyser.getByteFrequencyData(dataArray);
@@ -245,31 +195,13 @@ function animate() {
   if (currentStyle === 'bars') drawBars();
   else if (currentStyle === 'circle') drawCircle();
   else if (currentStyle === 'wave') drawWave();
-  else if (currentStyle === 'flower') drawFlower();
-  
-  timeEl.textContent = formatTime(audioPlayer.currentTime);
   
   if (isPlaying) {
-    animationId = requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
   }
 }
 
-function formatTime(sec) {
-  if (!sec || isNaN(sec)) return '0:00';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-audioPlayer.addEventListener('loadedmetadata', () => {
-  durationEl.textContent = formatTime(audioPlayer.duration);
-});
-
-audioPlayer.addEventListener('ended', () => {
-  isPlaying = false;
-  status.textContent = 'Finished!';
-});
-
+// Initial message
 ctx.fillStyle = '#a0aec0';
 ctx.font = '18px Arial';
 ctx.textAlign = 'center';
