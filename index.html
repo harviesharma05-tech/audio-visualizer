@@ -1,211 +1,83 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Audio Visualizer</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#0a0e27;color:#e2e8f0;font-family:Arial,sans-serif;overflow:hidden;height:100vh;}
+body{margin:0;background:#0a0e27;overflow:hidden;height:100vh;font-family:Arial;}
 canvas{display:block;width:100%;height:100%;}
-.controls{position:absolute;top:20px;left:20px;background:#1a1f3a;padding:20px;border-radius:10px;border:2px solid #00ff9d;z-index:10;}
-.controls h2{color:#00ff9d;margin-bottom:15px;}
-button{background:#00ff9d;color:#0a0e27;border:none;padding:10px;border-radius:6px;cursor:pointer;width:100%;margin-bottom:8px;font-weight:bold;}
-button:hover{opacity:0.9;}
-input[type="file"]{width:100%;padding:8px;margin-bottom:10px;}
-input[type="range"]{width:100%;margin-top:8px;}
-input[type="color"]{width:100%;height:40px;border:none;}
-.status{position:absolute;bottom:20px;left:20px;background:#1a1f3a;padding:15px;border-radius:10px;color:#00ff9d;font-size:12px;}
+.controls{position:absolute;top:20px;left:20px;background:#1a1f3a;padding:20px;border:2px solid #00ff9d;border-radius:10px;z-index:10;}
+h2{color:#00ff9d;margin:0 0 15px;font-size:18px;}
+button{background:#00ff9d;color:#0a0e27;border:none;padding:12px;border-radius:6px;cursor:pointer;width:100%;margin:8px 0;font-weight:bold;font-size:14px;}
+button:hover{background:#00ccff;}
 </style>
 </head>
 <body>
 
 <canvas id="canvas"></canvas>
-<audio id="audio" crossorigin="anonymous"></audio>
 
 <div class="controls">
-  <h2>🎵 Audio Visualizer</h2>
-  <input type="file" id="file" accept="audio/*">
-  <button onclick="playIt()">▶ PLAY</button>
-  <button onclick="stopIt()">⏹ STOP</button>
-  
-  <div style="margin-top:15px;">
-    <label style="font-size:12px;color:#a0aec0;">Style:</label>
-    <div style="margin-top:5px;">
-      <button onclick="setStyle('bars')" style="margin-bottom:5px;padding:8px;">Bars</button>
-      <button onclick="setStyle('circle')" style="margin-bottom:5px;padding:8px;">Circle</button>
-      <button onclick="setStyle('wave')" style="margin-bottom:5px;padding:8px;">Wave</button>
-    </div>
-  </div>
-  
-  <div style="margin-top:15px;">
-    <label style="font-size:12px;color:#a0aec0;">Color:</label>
-    <input type="color" id="colorPicker" value="#00ff9d" style="margin-top:5px;">
-  </div>
-</div>
-
-<div class="status">
-  <div id="status">Load audio file</div>
+  <h2>🎵 Visualizer</h2>
+  <button onclick="playMusic()">▶ PLAY</button>
+  <button onclick="stopMusic()">⏹ STOP</button>
 </div>
 
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const audio = document.getElementById('audio');
-const fileInput = document.getElementById('file');
-const statusDiv = document.getElementById('status');
-const colorPicker = document.getElementById('colorPicker');
-
-let audioCtx, analyser, dataArray;
-let isPlaying = false;
-let currentStyle = 'bars';
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+
+let isRunning = false;
+let bars = Array(128).fill(0);
 
 window.addEventListener('resize', () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 });
 
-fileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const url = URL.createObjectURL(file);
-  audio.src = url;
-  statusDiv.textContent = '✓ Audio loaded. Click PLAY';
-});
-
-function initAudio() {
-  if (audioCtx) return;
-  
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  analyser.smoothingTimeConstant = 0.8;
-  
-  const source = audioCtx.createMediaElementAudioSource(audio);
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  
-  dataArray = new Uint8Array(analyser.frequencyBinCount);
+function playMusic() {
+  isRunning = true;
+  draw();
 }
 
-function playIt() {
-  if (!audio.src) {
-    statusDiv.textContent = '❌ Load audio first!';
-    return;
-  }
-  
-  initAudio();
-  
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  
-  audio.play();
-  isPlaying = true;
-  statusDiv.textContent = '▶ Playing...';
-  animate();
-}
-
-function stopIt() {
-  audio.pause();
-  audio.currentTime = 0;
-  isPlaying = false;
-  statusDiv.textContent = 'Stopped';
+function stopMusic() {
+  isRunning = false;
   ctx.fillStyle = '#0a0e27';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-function setStyle(style) {
-  currentStyle = style;
-}
-
-function drawBars() {
-  const barWidth = canvas.width / dataArray.length;
-  const color = colorPicker.value;
-  
-  for (let i = 0; i < dataArray.length; i++) {
-    const barHeight = (dataArray[i] / 255) * canvas.height;
-    
-    ctx.fillStyle = color;
-    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 1, barHeight);
-  }
-}
-
-function drawCircle() {
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const radius = 100;
-  const color = colorPicker.value;
-  
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-  ctx.stroke();
-  
-  for (let i = 0; i < dataArray.length; i++) {
-    const angle = (i / dataArray.length) * Math.PI * 2;
-    const value = dataArray[i] / 255;
-    const r = radius + value * 80;
-    
-    const x = centerX + Math.cos(angle) * r;
-    const y = centerY + Math.sin(angle) * r;
-    
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawWave() {
-  const color = colorPicker.value;
-  const centerY = canvas.height / 2;
-  const sliceWidth = canvas.width / dataArray.length;
-  
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = color;
-  ctx.beginPath();
-  
-  for (let i = 0; i < dataArray.length; i++) {
-    const v = dataArray[i] / 128.0;
-    const y = (v * canvas.height) / 2;
-    const x = (i * sliceWidth);
-    
-    if (i === 0) {
-      ctx.moveTo(x, centerY + y);
-    } else {
-      ctx.lineTo(x, centerY + y);
-    }
-  }
-  
-  ctx.stroke();
-}
-
-function animate() {
-  ctx.fillStyle = 'rgba(10, 14, 39, 0.1)';
+function draw() {
+  // Background
+  ctx.fillStyle = 'rgba(10, 14, 39, 0.2)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
-  analyser.getByteFrequencyData(dataArray);
+  // Update bars with random data
+  for (let i = 0; i < bars.length; i++) {
+    bars[i] += (Math.random() - 0.5) * 50;
+    bars[i] = Math.max(0, Math.min(255, bars[i]));
+  }
   
-  if (currentStyle === 'bars') drawBars();
-  else if (currentStyle === 'circle') drawCircle();
-  else if (currentStyle === 'wave') drawWave();
+  // Draw bars
+  const barWidth = canvas.width / bars.length;
+  ctx.fillStyle = '#00ff9d';
   
-  if (isPlaying) {
-    requestAnimationFrame(animate);
+  for (let i = 0; i < bars.length; i++) {
+    const height = (bars[i] / 255) * canvas.height;
+    ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 2, height);
+  }
+  
+  if (isRunning) {
+    requestAnimationFrame(draw);
   }
 }
 
-// Initial message
+// Initial screen
 ctx.fillStyle = '#a0aec0';
 ctx.font = '18px Arial';
 ctx.textAlign = 'center';
-ctx.fillText('Load audio file aur PLAY daba', canvas.width / 2, canvas.height / 2);
+ctx.fillText('Click PLAY button', canvas.width / 2, canvas.height / 2);
 </script>
 </body>
 </html>
