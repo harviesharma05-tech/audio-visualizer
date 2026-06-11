@@ -1,15 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Audio Visualizer</title>
 <style>
-body{margin:0;background:#0a0e27;overflow:hidden;height:100vh;font-family:Arial;}
-canvas{display:block;width:100%;height:100%;}
-.controls{position:absolute;top:20px;left:20px;background:#1a1f3a;padding:20px;border:2px solid #00ff9d;border-radius:10px;z-index:10;}
-h2{color:#00ff9d;margin:0 0 15px;font-size:18px;}
-button{background:#00ff9d;color:#0a0e27;border:none;padding:12px;border-radius:6px;cursor:pointer;width:100%;margin:8px 0;font-weight:bold;font-size:14px;}
-button:hover{background:#00ccff;}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0e27; overflow: hidden; font-family: Arial; }
+canvas { display: block; width: 100%; height: 100%; }
+.controls { 
+  position: absolute; top: 20px; left: 20px; 
+  background: #1a1f3a; border: 2px solid #00ff9d; 
+  padding: 20px; border-radius: 10px; z-index: 10; 
+}
+h2 { color: #00ff9d; margin: 0 0 15px; }
+button { 
+  background: #00ff9d; color: #0a0e27; 
+  border: none; padding: 12px; width: 100%; 
+  border-radius: 6px; cursor: pointer; 
+  font-weight: bold; margin: 5px 0; 
+}
+button:hover { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -18,8 +28,8 @@ button:hover{background:#00ccff;}
 
 <div class="controls">
   <h2>🎵 Visualizer</h2>
-  <button onclick="playMusic()">▶ PLAY</button>
-  <button onclick="stopMusic()">⏹ STOP</button>
+  <button onclick="togglePlay()">▶ PLAY</button>
+  <button onclick="togglePlay()">⏸ STOP</button>
 </div>
 
 <script>
@@ -29,55 +39,49 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let isRunning = false;
-let bars = Array(128).fill(0);
+let playing = false;
+let bars = [];
 
-window.addEventListener('resize', () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
-
-function playMusic() {
-  isRunning = true;
-  draw();
+for (let i = 0; i < 64; i++) {
+  bars.push(Math.random() * 100);
 }
 
-function stopMusic() {
-  isRunning = false;
-  ctx.fillStyle = '#0a0e27';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+function togglePlay() {
+  playing = !playing;
+  if (playing) animate();
 }
 
-function draw() {
-  // Background
-  ctx.fillStyle = 'rgba(10, 14, 39, 0.2)';
+function animate() {
+  // Clear with fade
+  ctx.fillStyle = 'rgba(10, 14, 39, 0.3)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
-  // Update bars with random data
+  // Update bars
   for (let i = 0; i < bars.length; i++) {
-    bars[i] += (Math.random() - 0.5) * 50;
-    bars[i] = Math.max(0, Math.min(255, bars[i]));
+    bars[i] += (Math.random() - 0.5) * 40;
+    if (bars[i] < 0) bars[i] = 0;
+    if (bars[i] > 200) bars[i] = 200;
   }
   
   // Draw bars
   const barWidth = canvas.width / bars.length;
-  ctx.fillStyle = '#00ff9d';
-  
   for (let i = 0; i < bars.length; i++) {
-    const height = (bars[i] / 255) * canvas.height;
-    ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 2, height);
+    const h = (bars[i] / 200) * canvas.height;
+    ctx.fillStyle = '#00ff9d';
+    ctx.fillRect(i * barWidth, canvas.height - h, barWidth - 1, h);
   }
   
-  if (isRunning) {
-    requestAnimationFrame(draw);
+  if (playing) {
+    requestAnimationFrame(animate);
   }
 }
 
-// Initial screen
+// Initial message
 ctx.fillStyle = '#a0aec0';
 ctx.font = '18px Arial';
 ctx.textAlign = 'center';
-ctx.fillText('Click PLAY button', canvas.width / 2, canvas.height / 2);
+ctx.fillText('Click PLAY', canvas.width / 2, canvas.height / 2);
 </script>
+
 </body>
 </html>
